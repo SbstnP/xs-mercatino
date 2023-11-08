@@ -1,0 +1,500 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="46bfda52-27f4-43e4-9d2c-efcabeb65649" >
+		<http:listener-connection host="0.0.0.0" port="8089" />
+	</http:listener-config>
+	<apikit:config outboundHeadersMapName="outboundHeadersMapName" httpStatusVarName="httpStatus" doc:name="Router" doc:id="9fc75eeb-4ab7-474c-94d9-dde864503a3c" name="Router" api="resource::cdf1abc7-b4a4-4c3a-81d1-6185b7fff788:api-xs-mercatino:1.0.22:raml:zip:api-xs-mercatino.raml" />
+	<http:request-config name="HTTP_Request_configuration_BS" doc:name="HTTP Request configuration" doc:id="42df1a6d-3d92-4d2c-b7fc-c589f93fea61" >
+		<http:request-connection host="localhost" port="8082" />
+	</http:request-config>
+	<flow name="xs-mercatinoFlow" doc:id="ae0438c8-e338-45ef-931d-1dff655510a2" >
+		<http:listener doc:name="Listener" doc:id="e76c3126-3abe-468b-9827-b58a7718e9d3" config-ref="HTTP_Listener_config" path="/*"/>
+		<apikit:router doc:name="APIkit Router" doc:id="730b5671-9cee-4f47-96f6-9a7ebaaa79b3" config-ref="Router"/>
+	</flow>
+	<flow name="get:\User\(user_id):application\json:Router" doc:id="d2643657-3470-4316-a74c-1195a3441061" >
+		<http:request method="GET" doc:name="Request" doc:id="f7697189-fc45-444c-bfbe-891bb6ec11c9" config-ref="HTTP_Request_configuration_BS" path="/User/{requested_user_id}" sendCorrelationId="ALWAYS">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"UserId" : attributes.headers.UserId,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"requested_user_id" : (attributes.uriParams.user_id) as Number
+}]]]></http:uri-params>
+		</http:request>
+	</flow>
+	<flow name="get:\User:application\json:Router" doc:id="2e2def1c-a1c6-47fa-91fd-ea2db76c49f4" >
+		<ee:transform doc:name="Transform Message" doc:id="b50ad71d-0647-4351-9057-7da556050a1f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json skipNullOn = "everywhere"
+---
+{
+	"Age":(if(!isEmpty(attributes.queryParams.Age))
+		attributes.queryParams.Age as Number
+		else null),
+	"FiscalCode":attributes.queryParams.FiscalCode,
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="UserIdHeader" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"UserId":attributes.headers.UserId
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="GET" doc:name="Request" doc:id="dfe37001-134e-4114-91ec-bf8ab7847112" config-ref="HTTP_Request_configuration_BS" path="/User" sendCorrelationId="ALWAYS">
+			<http:headers ><![CDATA[#[{
+	"user_id":vars.UserIdHeader.UserId,
+	"Content-Type":"application/json"
+}]]]></http:headers>
+			<http:query-params ><![CDATA[#[payload]]]></http:query-params>
+		</http:request>
+	</flow>
+	<flow name="post:\User:application\json:Router" doc:id="a9d35fe1-992e-49ce-bd87-970053f3d785" >
+		<ee:transform doc:name="ClientData" doc:id="e6472762-30be-4231-bc8d-c0bfd7aeb844" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ClientData" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"UserId":attributes.headers.UserId,
+	"NewUser":payload
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="GET" doc:name="Request_FiscalControl" doc:id="342622b8-5a9e-40b7-a7f2-1f9e77a5b9ed" config-ref="HTTP_Request_configuration_BS" path="/FiscalControl" sendCorrelationId="ALWAYS">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json",
+	"UserId":vars.ClientData.UserId
+}]]]></http:headers>
+			<http:query-params ><![CDATA[#[{
+	"FC":vars.ClientData.NewUser.FiscalCode
+}]]]></http:query-params>
+		</http:request>
+		<ee:transform doc:name="ListaUser" doc:id="bda369da-4327-4cdf-a64e-03fb15685f91" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ListaUser" ><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="cb6b8074-f832-4174-b84a-053c5d27d7ce" >
+			<when expression="#[isEmpty(vars.ClientData.UserId)]">
+				<choice doc:name="Choice" doc:id="a36a1d64-6224-4af8-9aba-557becd2c31d" >
+					<when expression='#[!isEmpty( payload filter ((item, index) -&gt; item.FiscalCode == vars.ClientData.NewUser.FiscalCode) &#10;)]'>
+						<ee:transform doc:name="Already used" doc:id="9ccc35e9-43be-4289-a1a4-fde1dbf45c7e" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+"Already used"]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</when>
+					<otherwise >
+						<http:request method="POST" doc:name="Request_POST_User" doc:id="bb8e4caa-7b4f-480e-8edf-5cdb057c242b" config-ref="HTTP_Request_configuration_BS" path="/User" sendCorrelationId="ALWAYS" responseTimeout="60000">
+							<http:body ><![CDATA[#[vars.ClientData.NewUser]]]></http:body>
+						</http:request>
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise>
+				<http:request method="GET" doc:name="Request_GET_byUserId" doc:id="d293558d-6505-40fa-bf76-5ac18e2f7dba" config-ref="HTTP_Request_configuration_BS" path="/User/{user_id}" sendCorrelationId="ALWAYS" responseTimeout="60000">
+					<http:body ><![CDATA[#[vars.ClientData.NewUser]]]></http:body>
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"UserId" : vars.ClientData.UserId,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+					<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"user_id" : vars.ClientData.UserId
+}]]]></http:uri-params>
+					<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"user_id" : vars.ClientData.UserId
+}]]]></http:query-params>
+				</http:request>
+				<choice doc:name="Choice" doc:id="e3cb3288-48b3-440c-8535-a7972dccfb3e" >
+					<when expression='#[payload.data.User.UserType == "Admin"]'>
+						<choice doc:name="Choice" doc:id="c10ced2a-72d0-45a1-938d-33e4ccf2cef5">
+							<when expression="#[isEmpty(vars.ListaUser.data.User filter ((item, index) -&gt; item.UserType == vars.ClientData.NewUser.UserType))]">
+								<http:request method="POST" doc:name="Request_POST_User" doc:id="098013d7-5438-4c22-91d7-70861c7002e0" config-ref="HTTP_Request_configuration_BS" path="/User" sendCorrelationId="ALWAYS" >
+									<http:body ><![CDATA[#[vars.ClientData.NewUser]]]></http:body>
+									<http:headers ><![CDATA[#[output application/java
+---
+{
+	"UserId" : vars.ClientData.UserId,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+								</http:request>
+							</when>
+							<otherwise>
+								<ee:transform doc:name="Non Autorizzato" doc:id="ed539e1c-d588-4494-ad83-d5dd345ee61e">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+"Non Autorizzato, l'utente con codice fiscale "++(vars.ClientData.NewUser.FiscalCode)++" è già registrato"]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</otherwise>
+						</choice>
+					</when>
+					<otherwise>
+						<ee:transform doc:name="Not Authorized" doc:id="0e86eeff-47ea-4720-a35c-0756c1942afc" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"meta": {
+		"status": "Failed",
+		"code": 0
+	},
+	"data": {
+		"message": "Failed to create item, user not authorized"
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get:\Item\(item_id):application\json:Router" doc:id="30a1c5bc-ba76-43ef-b0d9-7adf7607f020" >
+		<http:request method="GET" doc:name="Request_GET_ItemById" doc:id="90ff039b-e2d9-42cd-ac90-4302ae3d287d" config-ref="HTTP_Request_configuration_BS" path="/Item/{item_id}">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"item_id" :(attributes.uriParams.item_id) as Number
+}]]]></http:uri-params>
+		</http:request>
+	</flow>
+	<flow name="get:\Item:application\json:Router" doc:id="0ce92c88-a1af-4f8f-834e-dd55d99f6486" >
+		<http:request method="GET" doc:name="Request" doc:id="56b9873c-2132-4a01-a6fa-e8755485b02d" config-ref="HTTP_Request_configuration_BS" path="/Item">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"Name" : attributes.queryParams.Name
+}]]]></http:query-params>
+		</http:request>
+	</flow>
+	<flow name="post:\Item:application\json:Router" doc:id="24f075e1-49e9-4f64-b8cf-59c9d3e7b366">
+		<ee:transform doc:name="ClientData" doc:id="8d7a910c-08f2-4e55-9461-2ec37c5e5f46">
+					<ee:message>
+					</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ClientData" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"UserId":attributes.headers.UserId,
+	"NewItem":payload
+}]]></ee:set-variable>
+			</ee:variables>
+				</ee:transform>
+		<choice doc:name="Choice" doc:id="3cac6562-bcf2-46a7-9495-c9a0fcfa0f92" >
+			<when expression="#[isEmpty(attributes.headers.UserId)]">
+				<ee:transform doc:name="UserId not specified" doc:id="e2d0be2e-2e40-43d0-9502-05d280502214" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"meta": {
+		"status": "Failed",
+		"code": 0
+	},
+	"data": {
+		"message": "Failed to create item, UserId is not specified"
+	}
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<http:request method="GET" doc:name="Request_GET_UserId" doc:id="6d092e6e-f12c-4e74-823e-7f00d18c8aaa" config-ref="HTTP_Request_configuration_BS" path="/User/{user_id}" sendCorrelationId="ALWAYS">
+					<http:headers><![CDATA[#[output application/java
+---
+{
+	"UserId" : vars.ClientData.UserId,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+					<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"user_id" : vars.ClientData.UserId
+}]]]></http:uri-params>
+				</http:request>
+				<choice doc:name="Choice" doc:id="24766f2b-30f0-440c-b28f-38dda0c3ff26" >
+					<when expression='#[payload.data.User.UserType == "Customer"]'>
+						<ee:transform doc:name="Not Authorized" doc:id="535fdd66-37d7-453f-a860-d7b9ec8abb7f" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"meta": {
+		"status": "Failed",
+		"code": 0
+	},
+	"data": {
+		"message": "Failed to create item, user not authorized"
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</when>
+					<otherwise>
+						<http:request method="GET" doc:name="Request_GET_ItemByName" doc:id="37cfb845-fc32-477d-916c-2bff4f8a3977" config-ref="HTTP_Request_configuration_BS" path="/Item">
+							<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+							<http:query-params ><![CDATA[#[output application/json
+---
+{
+	"Name" : vars.ClientData.NewItem.Name
+}]]]></http:query-params>
+						</http:request>
+						<choice doc:name="Choice" doc:id="8af557e3-34a2-4e5a-b2df-3dbd08897dad" >
+							<when expression='#[!(payload.data.message == "No Item Found")]'>
+								<ee:transform doc:name="Transform Message" doc:id="7812d79c-b20c-4ffe-8a31-39620e1aad81" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"meta": {
+		"status": "Failed",
+		"code": 0
+	},
+	"data": {
+		"message": "Item already exists"
+	}
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</when>
+							<otherwise >
+								<http:request method="PUT" doc:name="Request_POST_Item" doc:id="0af4f620-9f84-494c-a2be-222dc7116069" config-ref="HTTP_Request_configuration_BS" path="/Item" sendCorrelationId="ALWAYS" responseTimeout="60000">
+									<http:body ><![CDATA[#[%dw 2.0
+output application/json
+---
+vars.ClientData.NewItem]]]></http:body>
+									<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json",
+	"UserId":vars.ClientData.UserId
+}]]]></http:headers>
+								</http:request>
+							</otherwise>
+						</choice>
+					</otherwise>
+				</choice>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get:\Order\(user_id):application\json:Router" doc:id="9a89afa2-b8cd-4b38-984c-816282103f56" >
+		<ee:transform doc:name="ClientData" doc:id="ca0eaee2-60bc-4f3c-afde-4415bc3af273" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ClientData" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"UserId":attributes.headers.UserId,
+	"UserOrdersId":attributes.uriParams.user_id
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="GET" doc:name="Request_GET_UserById" doc:id="8187708d-de85-425d-a586-1e85475779d5" config-ref="HTTP_Request_configuration_BS" path="/User/{user_id}" sendCorrelationId="ALWAYS">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"UserId" : attributes.headers.UserId,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"user_id" : attributes.uriParams.user_id
+}]]]></http:uri-params>
+		</http:request>
+		<choice doc:name="Choice" doc:id="f8019108-1640-4ebb-85db-f2261ae77bc8" >
+			<when expression="#[(payload.data.message == &quot;User Found&quot;) or&#10; (payload.data.message == &quot;You don't have Admin clearance for this information&quot;)]">
+				<http:request method="GET" doc:name="Request_GET_OrderById" doc:id="cf57eeec-3505-471e-a8bf-d108498ef89c" config-ref="HTTP_Request_configuration_BS" path="/Order/{user_id}" sendCorrelationId="ALWAYS">
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json",
+	"user_id":vars.ClientData.UserId
+}]]]></http:headers>
+					<http:uri-params ><![CDATA[#[output application/json
+---
+{
+	"user_id" : vars.ClientData.UserOrdersId
+}]]]></http:uri-params>
+				</http:request>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="No User Found" doc:id="d4947b88-440f-4269-b1d8-9ae59927be46" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "meta": {
+        "message": "Failed",
+        "code": -1
+    },
+    "data": {
+        "message": "No User Found"
+    }
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="post:\Order:application\json:Router" doc:id="65aa825a-7526-4024-beee-86e30906a01e" >
+		<ee:transform doc:name="Client Data" doc:id="d1e0416d-6e81-4a5b-9877-7a9ec3bbb7ff" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ClientData" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"UserId":payload.UserId,
+	"ItemId":payload.ItemId
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="GET" doc:name="Request_GET_UserById" doc:id="2fd62e40-4532-4dba-87eb-3d026c5a296a" config-ref="HTTP_Request_configuration_BS" path="/User/{user_id}">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"UserId" : vars.ClientData.UserId,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"user_id" : vars.ClientData.UserId
+}]]]></http:uri-params>
+		</http:request>
+		<choice doc:name="Choice" doc:id="df0f0bad-8685-4b69-8bab-ffe5db3650cf" >
+			<when expression='#[payload.data.message == "User Found"]' >
+				<http:request method="GET" doc:name="Request_GET_ItemById" doc:id="af44cfca-3737-46e6-8428-4bc24f6b724f" config-ref="HTTP_Request_configuration_BS" path="/Item/{item_id}" sendCorrelationId="ALWAYS">
+					<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+					<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"item_id" : vars.ClientData.ItemId
+}]]]></http:uri-params>
+				</http:request>
+				<choice doc:name="Choice" doc:id="7074f591-0a72-4bf3-ae12-88427a39123d" >
+					<when expression='#[payload.meta.message[0] == "Success"]' >
+						<ee:transform doc:name="Item" doc:id="51629662-72e8-4a52-94cb-fa1a4ea1b488" >
+							<ee:message >
+							</ee:message>
+							<ee:variables >
+								<ee:set-variable variableName="Item" ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<http:request method="POST" doc:name="Request_POST_Order" doc:id="a8529a11-f8f7-4eeb-b3e1-b46fbd6f3643" config-ref="HTTP_Request_configuration_BS" path="/Order" sendCorrelationId="ALWAYS">
+							<http:body ><![CDATA[#[vars.Item[0].data.Item[0]]]]></http:body>
+							<http:headers ><![CDATA[#[output application/java
+---
+{
+	"user_id" : vars.ClientData.UserId ,
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+						</http:request>
+					</when>
+					<otherwise>
+						<ee:transform doc:name="No Item Found" doc:id="297fcfcd-de00-4638-8549-530a8dce3330">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "meta": {
+        "message": "Failed",
+        "code": -1
+    },
+    "data": {
+        "message": "No Item Found"
+    }
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="No User Found" doc:id="2687dbc5-943d-4aae-a3b4-a879ed8de57d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "meta": {
+        "message": "Failed",
+        "code": -1
+    },
+    "data": {
+        "message": "No User Found"
+    }
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>
